@@ -19,8 +19,9 @@ const INITIAL_EDGES: Edge[] = [
 ];
 
 export default function GraphPage() {
-  const [edges, setEdges] = useState<Edge[]>([]);
+  const [edges, setEdges] = useState<Edge[]>(INITIAL_EDGES); // Start with demo data immediately
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [useLocalStorage, setUseLocalStorage] = useState(false);
 
   // Load edges from API or localStorage
@@ -31,10 +32,8 @@ export default function GraphPage() {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setEdges(data);
-        } else {
-          // DB is empty, use initial demo data
-          setEdges(INITIAL_EDGES);
         }
+        // If DB is empty, keep the initial demo data
       } else {
         throw new Error("API request failed");
       }
@@ -45,8 +44,6 @@ export default function GraphPage() {
       const stored = localStorage.getItem("ens-graph-edges");
       if (stored) {
         setEdges(JSON.parse(stored));
-      } else {
-        setEdges(INITIAL_EDGES);
       }
     }
     setLoading(false);
@@ -63,57 +60,76 @@ export default function GraphPage() {
     }
   }, [edges, useLocalStorage]);
 
+  // OPTIMISTIC ADD: Update UI immediately, sync to DB in background
   const handleAddEdge = async (source: string, target: string) => {
+    // Create a temporary ID for optimistic update
+    const tempId = Date.now();
+    const newEdge: Edge = { id: tempId, source, target };
+    
+    // Update UI immediately (optimistic)
+    setEdges((prev) => [...prev, newEdge]);
+
     if (useLocalStorage) {
-      // Local storage mode
-      const newEdge: Edge = { source, target, id: Date.now() };
-      setEdges((prev) => [...prev, newEdge]);
-    } else {
-      // Database mode
-      try {
-        const res = await fetch("/api/edges", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source, target }),
-        });
-        if (res.ok) {
-          await loadEdges();
-        }
-      } catch (error) {
-        console.error("Failed to add edge:", error);
-      }
+      // Already updated, nothing more to do
+      return;
     }
+
+    // Sync to database in background
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/edges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, target }),
+      });
+      if (res.ok) {
+        const savedEdge = await res.json();
+        // Replace temp ID with real DB ID
+        setEdges((prev) => 
+          prev.map((e) => e.id === tempId ? { ...e, id: savedEdge.id } : e)
+        );
+      }
+    } catch (error) {
+      console.error("Failed to sync edge to DB:", error);
+      // Rollback on failure
+      setEdges((prev) => prev.filter((e) => e.id !== tempId));
+    }
+    setSyncing(false);
   };
 
+  // OPTIMISTIC DELETE: Update UI immediately, sync to DB in background
   const handleDeleteEdge = async (id: number) => {
+    // Find the edge to delete (for potential rollback)
+    const edgeToDelete = edges.find((e) => e.id === id);
+    
+    // Update UI immediately (optimistic)
+    setEdges((prev) => prev.filter((e) => e.id !== id));
+
     if (useLocalStorage) {
-      setEdges((prev) => prev.filter((e) => e.id !== id));
-    } else {
-      try {
-        const res = await fetch("/api/edges", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-        if (res.ok) {
-          await loadEdges();
-        }
-      } catch (error) {
-        console.error("Failed to delete edge:", error);
+      // Already updated, nothing more to do
+      return;
+    }
+
+    // Sync to database in background
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/edges", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        throw new Error("Delete failed");
+      }
+    } catch (error) {
+      console.error("Failed to sync deletion to DB:", error);
+      // Rollback on failure - re-add the edge
+      if (edgeToDelete) {
+        setEdges((prev) => [...prev, edgeToDelete]);
       }
     }
+    setSyncing(false);
   };
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-4">ENS Social Graph</h1>
-          <p className="text-gray-600">Loading graph data...</p>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-gray-50 p-8">
@@ -121,7 +137,17 @@ export default function GraphPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">ENS Social Graph</h1>
-            {useLocalStorage && (
+            {loading && (
+              <p className="text-sm text-gray-500 mt-1">
+                Loading from database...
+              </p>
+            )}
+            {syncing && (
+              <p className="text-sm text-blue-600 mt-1">
+                Syncing changes...
+              </p>
+            )}
+            {useLocalStorage && !loading && (
               <p className="text-sm text-amber-600 mt-1">
                 Using local storage (database not configured)
               </p>
