@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ENS Social Graph
+
+An interactive social graph visualization for Ethereum Name Service (ENS) profiles.
+
+## Features
+
+- **ENS Profile Viewer**: View any ENS name's avatar, address, and text records
+- **Interactive Graph**: Force-directed graph visualization of ENS connections
+- **Click-to-Navigate**: Click on graph nodes to view profiles
+- **Add/Delete Edges**: Manage connections through the UI
+- **Database Persistence**: PostgreSQL with Drizzle ORM (falls back to localStorage)
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Blockchain**: viem + wagmi
+- **Database**: Vercel Postgres (or any PostgreSQL via Drizzle)
+- **Graph**: react-force-graph-2d
+- **Styling**: Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
-
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. (Optional) Set up database - copy `.env.example` to `.env.local` and add your Postgres URL:
+```bash
+cp .env.example .env.local
+# Edit .env.local with your POSTGRES_URL
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. (Optional) Run database migration:
+```bash
+bunx drizzle-kit push
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Start the development server:
+```bash
+bun run dev
+```
 
-## Learn More
+5. Open [http://localhost:3000](http://localhost:3000)
 
-To learn more about Next.js, take a look at the following resources:
+## Pages
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/` - Home page with navigation
+- `/profile/[ensName]` - ENS profile viewer (e.g., `/profile/vitalik.eth`)
+- `/graph` - Interactive social graph
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment to Vercel
 
-## Deploy on Vercel
+1. Push to GitHub
+2. Import project in Vercel
+3. Add a Postgres database from Vercel Storage
+4. Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app will automatically use the `POSTGRES_URL` environment variable provided by Vercel Postgres.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
