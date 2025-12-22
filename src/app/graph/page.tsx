@@ -18,11 +18,27 @@ const INITIAL_EDGES: Edge[] = [
   { id: 4, source: "nick.eth", target: "brantly.eth" },
 ];
 
+// Helper to validate ENS name exists (has resolver/address)
+async function validateENSName(name: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/ens-search?q=${encodeURIComponent(name)}`);
+    if (res.ok) {
+      const data = await res.json();
+      // Check if the exact name exists in results
+      return data.some((r: { name: string }) => r.name.toLowerCase() === name.toLowerCase());
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export default function GraphPage() {
-  const [edges, setEdges] = useState<Edge[]>(INITIAL_EDGES); // Start with demo data immediately
+  const [edges, setEdges] = useState<Edge[]>(INITIAL_EDGES);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [useLocalStorage, setUseLocalStorage] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
   // Load edges from API or localStorage
   const loadEdges = useCallback(async () => {
@@ -33,14 +49,12 @@ export default function GraphPage() {
         if (Array.isArray(data) && data.length > 0) {
           setEdges(data);
         }
-        // If DB is empty, keep the initial demo data
       } else {
         throw new Error("API request failed");
       }
     } catch (error) {
       console.log("Using localStorage fallback:", error);
       setUseLocalStorage(true);
-      // Try localStorage
       const stored = localStorage.getItem("ens-graph-edges");
       if (stored) {
         setEdges(JSON.parse(stored));
@@ -53,29 +67,54 @@ export default function GraphPage() {
     loadEdges();
   }, [loadEdges]);
 
-  // Save to localStorage when using fallback
   useEffect(() => {
     if (useLocalStorage && edges.length > 0) {
       localStorage.setItem("ens-graph-edges", JSON.stringify(edges));
     }
   }, [edges, useLocalStorage]);
 
-  // OPTIMISTIC ADD: Update UI immediately, sync to DB in background
-  const handleAddEdge = async (source: string, target: string) => {
-    // Create a temporary ID for optimistic update
-    const tempId = Date.now();
-    const newEdge: Edge = { id: tempId, source, target };
-    
-    // Update UI immediately (optimistic)
-    setEdges((prev) => [...prev, newEdge]);
+  // Show toast notification
+  const showToast = (message: string, type: "error" | "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
-    if (useLocalStorage) {
-      // Already updated, nothing more to do
+  // OPTIMISTIC ADD with ENS validation
+  const handleAddEdge = async (source: string, target: string) => {
+    // Validate both ENS names exist
+    setSyncing(true);
+    const [sourceValid, targetValid] = await Promise.all([
+      validateENSName(source),
+      validateENSName(target),
+    ]);
+
+    if (!sourceValid && !targetValid) {
+      showToast(`Both "${source}" and "${target}" don't exist`, "error");
+      setSyncing(false);
+      return;
+    }
+    if (!sourceValid) {
+      showToast(`"${source}" is not a registered ENS name`, "error");
+      setSyncing(false);
+      return;
+    }
+    if (!targetValid) {
+      showToast(`"${target}" is not a registered ENS name`, "error");
+      setSyncing(false);
       return;
     }
 
-    // Sync to database in background
-    setSyncing(true);
+    // Both valid - proceed with optimistic update
+    const tempId = Date.now();
+    const newEdge: Edge = { id: tempId, source, target };
+    setEdges((prev) => [...prev, newEdge]);
+    showToast(`Added connection: ${source} → ${target}`, "success");
+
+    if (useLocalStorage) {
+      setSyncing(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/edges", {
         method: "POST",
@@ -84,33 +123,24 @@ export default function GraphPage() {
       });
       if (res.ok) {
         const savedEdge = await res.json();
-        // Replace temp ID with real DB ID
-        setEdges((prev) => 
-          prev.map((e) => e.id === tempId ? { ...e, id: savedEdge.id } : e)
+        setEdges((prev) =>
+          prev.map((e) => (e.id === tempId ? { ...e, id: savedEdge.id } : e))
         );
       }
     } catch (error) {
       console.error("Failed to sync edge to DB:", error);
-      // Rollback on failure
       setEdges((prev) => prev.filter((e) => e.id !== tempId));
     }
     setSyncing(false);
   };
 
-  // OPTIMISTIC DELETE: Update UI immediately, sync to DB in background
+  // OPTIMISTIC DELETE
   const handleDeleteEdge = async (id: number) => {
-    // Find the edge to delete (for potential rollback)
     const edgeToDelete = edges.find((e) => e.id === id);
-    
-    // Update UI immediately (optimistic)
     setEdges((prev) => prev.filter((e) => e.id !== id));
 
-    if (useLocalStorage) {
-      // Already updated, nothing more to do
-      return;
-    }
+    if (useLocalStorage) return;
 
-    // Sync to database in background
     setSyncing(true);
     try {
       const res = await fetch("/api/edges", {
@@ -118,12 +148,9 @@ export default function GraphPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (!res.ok) {
-        throw new Error("Delete failed");
-      }
+      if (!res.ok) throw new Error("Delete failed");
     } catch (error) {
       console.error("Failed to sync deletion to DB:", error);
-      // Rollback on failure - re-add the edge
       if (edgeToDelete) {
         setEdges((prev) => [...prev, edgeToDelete]);
       }
@@ -132,28 +159,40 @@ export default function GraphPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-white p-8">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg font-medium transition-all animate-in slide-in-from-right ${
+            toast.type === "error"
+              ? "bg-red-500 text-white"
+              : "bg-green-500 text-white"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">ENS Social Graph</h1>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              ENS Social Graph
+            </h1>
             {loading && (
-              <p className="text-sm text-gray-500 mt-1">
-                Loading from database...
-              </p>
+              <p className="text-sm text-gray-500 mt-1">Loading from database...</p>
             )}
             {syncing && (
-              <p className="text-sm text-blue-600 mt-1">
-                Syncing changes...
-              </p>
+              <p className="text-sm text-blue-600 mt-1">Syncing changes...</p>
             )}
             {useLocalStorage && !loading && (
-              <p className="text-sm text-amber-600 mt-1">
-                Using local storage (database not configured)
-              </p>
+              <p className="text-sm text-amber-600 mt-1">Using local storage</p>
             )}
           </div>
-          <Link href="/" className="text-blue-600 hover:underline text-sm">
+          <Link
+            href="/"
+            className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
             ← Back to Home
           </Link>
         </div>
