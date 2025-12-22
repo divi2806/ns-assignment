@@ -1,4 +1,4 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, namehash } from "viem";
 import { mainnet } from "viem/chains";
 import { normalize } from "viem/ens";
 import { getRpcUrl } from "./config";
@@ -14,15 +14,15 @@ export interface ENSProfileData {
   normalizedName: string;
   address: string | null;
   avatar: string | null;
+  header: string | null;
   resolver: string | null;
   textRecords: Record<string, string>;
+  contentHash: string | null;
   error?: string;
   notFound?: boolean;
 }
 
-// Common ENS text record keys to check
-// These are the most commonly used keys in the ENS ecosystem
-// The profile will display any that have values set
+// All common ENS text record keys
 const COMMON_TEXT_RECORD_KEYS = [
   // Identity & Profile
   "description",
@@ -54,11 +54,15 @@ const COMMON_TEXT_RECORD_KEYS = [
   "avatar",
   "banner",
   "cover",
+  
+  // Additional records
+  "pgp",
+  "contenthash",
 ];
 
 export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> {
   try {
-    // Normalize the ENS name (handles unicode, case, etc.)
+    // Normalize the ENS name
     let normalizedName: string;
     try {
       normalizedName = normalize(ensName);
@@ -68,14 +72,16 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
         normalizedName: ensName,
         address: null,
         avatar: null,
+        header: null,
         resolver: null,
         textRecords: {},
+        contentHash: null,
         error: `Invalid ENS name format: "${ensName}"`,
         notFound: true,
       };
     }
 
-    // First check if the name has a resolver (i.e., exists)
+    // Get resolver
     let resolver: `0x${string}` | null;
     try {
       resolver = await client.getEnsResolver({ name: normalizedName });
@@ -89,8 +95,10 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
         normalizedName,
         address: null,
         avatar: null,
+        header: null,
         resolver: null,
         textRecords: {},
+        contentHash: null,
         error: `ENS name "${ensName}" not found or has no resolver`,
         notFound: true,
       };
@@ -103,7 +111,6 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
     ]);
 
     // Fetch all text records in parallel
-    // We try all common keys and filter out nulls
     const textRecordPromises = COMMON_TEXT_RECORD_KEYS.map(async (key) => {
       try {
         const value = await client.getEnsText({ name: normalizedName, key });
@@ -123,8 +130,10 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
       }
     }
 
+    // Get header from text records
+    const header = textRecords["header"] || null;
+
     // Consider the name "not found" if it has no address AND no text records
-    // This handles the case where ENS uses universal resolvers for unregistered names
     const hasNoData = !address && Object.keys(textRecords).length === 0;
     
     if (hasNoData) {
@@ -133,8 +142,10 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
         normalizedName,
         address: null,
         avatar: null,
+        header: null,
         resolver,
         textRecords: {},
+        contentHash: null,
         error: `ENS name "${ensName}" is not registered or has no data`,
         notFound: true,
       };
@@ -145,8 +156,10 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
       normalizedName,
       address,
       avatar,
+      header,
       resolver,
       textRecords,
+      contentHash: textRecords["contenthash"] || null,
     };
   } catch (error) {
     return {
@@ -154,8 +167,10 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
       normalizedName: ensName,
       address: null,
       avatar: null,
+      header: null,
       resolver: null,
       textRecords: {},
+      contentHash: null,
       error: error instanceof Error ? error.message : "Failed to resolve ENS name",
     };
   }
@@ -163,4 +178,8 @@ export async function fetchENSProfile(ensName: string): Promise<ENSProfileData> 
 
 export function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+export function getEtherscanUrl(address: string): string {
+  return `https://etherscan.io/address/${address}`;
 }
