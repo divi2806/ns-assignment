@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+interface SearchResult {
+  name: string;
+  label: string;
+}
 
 const EXAMPLE_NAMES = [
   { name: "vitalik.eth", description: "Ethereum founder" },
@@ -12,13 +17,107 @@ const EXAMPLE_NAMES = [
 
 export default function Home() {
   const [ensName, setEnsName] = useState("");
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search function
+  const searchENS = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/ens-search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      }
+    } catch (error) {
+      console.error("Search failed:", error);
+      setSuggestions([]);
+    }
+    setIsLoading(false);
+  }, []);
+
+  // Debounce effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (ensName.trim()) {
+        searchENS(ensName.trim());
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [ensName, searchENS]);
+
+  // Handle clicking outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = ensName.trim();
-    if (trimmed) {
-      router.push(`/profile/${encodeURIComponent(trimmed)}`);
+    const name = ensName.trim();
+    if (name) {
+      // Add .eth if not present and doesn't contain a dot
+      const fullName = name.includes(".") ? name : `${name}.eth`;
+      router.push(`/profile/${encodeURIComponent(fullName)}`);
+    }
+  };
+
+  const handleSelectSuggestion = (name: string) => {
+    setEnsName(name);
+    setShowSuggestions(false);
+    router.push(`/profile/${encodeURIComponent(name)}`);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Enter":
+        if (selectedIndex >= 0) {
+          e.preventDefault();
+          handleSelectSuggestion(suggestions[selectedIndex].name);
+        }
+        break;
+      case "Escape":
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+        break;
     }
   };
 
@@ -35,16 +134,55 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Search Form */}
-        <form onSubmit={handleSubmit} className="mb-8">
+        {/* Search Form with Autocomplete */}
+        <form onSubmit={handleSubmit} className="mb-8 relative">
           <div className="flex gap-3">
-            <input
-              type="text"
-              value={ensName}
-              onChange={(e) => setEnsName(e.target.value)}
-              placeholder="Enter any ENS name (e.g., vitalik.eth)"
-              className="flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-            />
+            <div className="flex-1 relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={ensName}
+                onChange={(e) => {
+                  setEnsName(e.target.value);
+                  setSelectedIndex(-1);
+                }}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter any ENS name (e.g., vitalik.eth)"
+                className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                autoComplete="off"
+              />
+              {isLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              {/* Autocomplete Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden"
+                >
+                  {suggestions.map((result, index) => (
+                    <button
+                      key={result.name}
+                      type="button"
+                      onClick={() => handleSelectSuggestion(result.name)}
+                      className={`w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-center gap-2 ${
+                        index === selectedIndex ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <span className="font-medium text-gray-900">
+                        {result.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="submit"
               disabled={!ensName.trim()}
@@ -53,6 +191,9 @@ export default function Home() {
               Search
             </button>
           </div>
+          <p className="text-sm text-gray-500 mt-2">
+            Start typing (3+ characters) to see suggestions
+          </p>
         </form>
 
         {/* Example ENS Names */}

@@ -1,10 +1,12 @@
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 import { normalize } from "viem/ens";
+import { getRpcUrl } from "./config";
 
+// Create client using configured RPC (Alchemy if available, otherwise public)
 const client = createPublicClient({
   chain: mainnet,
-  transport: http(),
+  transport: http(getRpcUrl()),
 });
 
 export interface ENSProfileData {
