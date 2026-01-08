@@ -48,6 +48,7 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
   const [newTarget, setNewTarget] = useState("");
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   // Update dimensions on resize
@@ -64,6 +65,22 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
+
+  // Apply custom D3 forces after graph is mounted
+  useEffect(() => {
+    if (fgRef.current) {
+      const fg = fgRef.current;
+      
+      // Set charge force (repulsion between nodes)
+      fg.d3Force('charge')?.strength(-800).distanceMax(400);
+      
+      // Set link force (distance between connected nodes)
+      fg.d3Force('link')?.distance(150);
+      
+      // Restart the simulation
+      fg.d3ReheatSimulation();
+    }
+  }, [graphData]);
 
   // Build graph data from edges
   useEffect(() => {
@@ -144,24 +161,50 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
       const x = node.x ?? 0;
       const y = node.y ?? 0;
       const label = node.name || node.id || "";
-      const fontSize = 12 / globalScale;
-      const nodeRadius = 8;
-
-      // Draw circle for node
+      const fontSize = 11 / globalScale;
+      const nodeRadius = 16; // Smaller nodes for better layout
+      
+      // Get initials from ENS name (e.g., "vitalik.eth" -> "V")
+      const getInitials = (name: string) => {
+        const cleanName = name.replace('.eth', '').replace('.', '');
+        return cleanName.charAt(0).toUpperCase();
+      };
+      
+      const initials = getInitials(label);
+      
+      // Draw outer circle (border)
       ctx.beginPath();
       ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = "#3b82f6";
+      ctx.fillStyle = "#ffffff";
       ctx.fill();
-      ctx.strokeStyle = "#1d4ed8";
-      ctx.lineWidth = 2 / globalScale;
+      ctx.strokeStyle = "#1f2937";
+      ctx.lineWidth = 2.5 / globalScale;
       ctx.stroke();
-
-      // Draw label
+      
+      // Draw inner circle with gradient
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, nodeRadius);
+      gradient.addColorStop(0, "#5b8ef4");
+      gradient.addColorStop(1, "#3b6fd8");
+      
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius - 1.5, 0, 2 * Math.PI);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      // Draw initials in the center
+      const initialFontSize = 12 / globalScale;
+      ctx.font = `bold ${initialFontSize}px Sans-Serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(initials, x, y);
+      
+      // Draw label below
       ctx.font = `${fontSize}px Sans-Serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = "#1f2937";
-      ctx.fillText(label, x, y + nodeRadius + 2);
+      ctx.fillText(label, x, y + nodeRadius + 3);
     },
     []
   );
@@ -172,49 +215,49 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
       {onAddEdge && (
         <form onSubmit={handleAddEdge} className="flex gap-2 items-end">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Source ENS</label>
+            <label className="block text-sm text-gray-900 font-medium mb-1">From Identity</label>
             <input
               type="text"
               value={newSource}
               onChange={(e) => setNewSource(e.target.value)}
               placeholder="e.g. vitalik.eth"
-              className="border rounded px-3 py-2 w-40"
+              className="border border-gray-300 rounded px-3 py-2 w-40 focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Target ENS</label>
+            <label className="block text-sm text-gray-900 font-medium mb-1">To Identity</label>
             <input
               type="text"
               value={newTarget}
               onChange={(e) => setNewTarget(e.target.value)}
               placeholder="e.g. nick.eth"
-              className="border rounded px-3 py-2 w-40"
+              className="border border-gray-300 rounded px-3 py-2 w-40 focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="bg-gray-900 text-white px-4 py-2 rounded hover:bg-gray-800 disabled:opacity-50 font-medium"
           >
-            {loading ? "Adding..." : "Add Connection"}
+            {loading ? "Connecting..." : "Link Identities"}
           </button>
         </form>
       )}
 
       {/* Edge List with Delete */}
       {onDeleteEdge && initialEdges.length > 0 && (
-        <div className="border rounded p-3 bg-gray-50">
-          <h3 className="text-sm font-medium mb-2">Connections</h3>
+        <div className="border border-gray-300 rounded p-3 bg-white">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Network Links</h3>
           <div className="flex flex-wrap gap-2">
             {initialEdges.map((edge, i) => (
-              <div key={edge.id || i} className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-sm">
-                <span>{edge.source}</span>
-                <span className="text-gray-400">→</span>
-                <span>{edge.target}</span>
+              <div key={edge.id || i} className="flex items-center gap-1 bg-gray-100 border border-gray-300 rounded px-2 py-1 text-sm">
+                <span className="text-gray-900">{edge.source}</span>
+                <span className="text-gray-600">→</span>
+                <span className="text-gray-900">{edge.target}</span>
                 {edge.id && (
                   <button
                     onClick={() => onDeleteEdge(edge.id!)}
-                    className="ml-1 text-red-500 hover:text-red-700"
+                    className="ml-1 text-red-600 hover:text-red-800 font-bold"
                   >
                     ×
                   </button>
@@ -226,9 +269,10 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
       )}
 
       {/* Graph */}
-      <div ref={containerRef} className="border rounded bg-white" style={{ height: 600 }}>
+      <div ref={containerRef} className="border border-gray-300 rounded bg-white shadow-sm" style={{ height: 600 }}>
         {graphData.nodes.length > 0 ? (
           <ForceGraph2D
+            ref={fgRef}
             graphData={graphData}
             width={dimensions.width}
             height={dimensions.height}
@@ -240,21 +284,32 @@ export function GraphView({ initialEdges, onAddEdge, onDeleteEdge }: GraphViewPr
               const n = node as any;
               ctx.fillStyle = color;
               ctx.beginPath();
-              ctx.arc(n.x ?? 0, n.y ?? 0, 12, 0, 2 * Math.PI);
+              ctx.arc(n.x ?? 0, n.y ?? 0, 20, 0, 2 * Math.PI);
               ctx.fill();
             }}
-            linkColor={() => "#94a3b8"}
+            linkColor={() => "#9ca3af"}
             linkWidth={2}
+            linkDirectionalArrowLength={4}
+            linkDirectionalArrowRelPos={1}
+            linkCurvature={0}
+            linkDirectionalParticles={2}
+            linkDirectionalParticleWidth={2}
+            linkDirectionalParticleSpeed={0.004}
+            linkDirectionalParticleColor={() => "#60a5fa"}
+            d3AlphaDecay={0.01}
+            d3VelocityDecay={0.2}
+            cooldownTicks={200}
+            warmupTicks={100}
           />
         ) : (
           <div className="h-full flex items-center justify-center text-gray-500">
-            No connections to display. Add some edges above!
+            No network data to display. Link identities to build your network!
           </div>
         )}
       </div>
 
       <p className="text-sm text-gray-500">
-        Click on a node to view the ENS profile.
+        Click any node to explore the identity profile.
       </p>
     </div>
   );

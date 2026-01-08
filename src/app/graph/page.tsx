@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { GraphView } from "@/components/graph-view";
-import Link from "next/link";
+import { Navbar } from "@/components/navbar";
 
 interface Edge {
   id?: number;
@@ -10,7 +10,7 @@ interface Edge {
   target: string;
 }
 
-// Initial demo data - used as fallback when DB is empty or not configured
+// Sample network data - used as fallback when DB is empty or not configured
 const INITIAL_EDGES: Edge[] = [
   { id: 1, source: "vitalik.eth", target: "balajis.eth" },
   { id: 2, source: "vitalik.eth", target: "nick.eth" },
@@ -108,7 +108,7 @@ export default function GraphPage() {
     const tempId = Date.now();
     const newEdge: Edge = { id: tempId, source, target };
     setEdges((prev) => [...prev, newEdge]);
-    showToast(`Added connection: ${source} → ${target}`, "success");
+      showToast(`Connected: ${source} → ${target}`, "success");
 
     if (useLocalStorage) {
       setSyncing(false);
@@ -159,50 +159,45 @@ export default function GraphPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-white p-8">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg font-medium transition-all animate-in slide-in-from-right ${
-            toast.type === "error"
-              ? "bg-red-500 text-white"
-              : "bg-green-500 text-white"
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-gray-50 p-8">
+        {/* Toast Notification */}
+        {toast && (
+          <div
+            className={`fixed top-4 right-4 z-50 px-5 py-3 rounded shadow-lg font-medium transition-all animate-in slide-in-from-right border ${
+              toast.type === "error"
+                ? "bg-red-600 text-white border-red-700"
+                : "bg-green-600 text-white border-green-700"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
 
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              ENS Social Graph
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Identity Network
             </h1>
             {loading && (
-              <p className="text-sm text-gray-500 mt-1">Loading from database...</p>
+              <p className="text-sm text-gray-600 mt-1">Loading network data...</p>
             )}
             {syncing && (
-              <p className="text-sm text-blue-600 mt-1">Syncing changes...</p>
+              <p className="text-sm text-gray-900 mt-1">Syncing network...</p>
             )}
             {useLocalStorage && !loading && (
-              <p className="text-sm text-amber-600 mt-1">Using local storage</p>
+              <p className="text-sm text-orange-600 mt-1">Offline mode</p>
             )}
           </div>
-          <Link
-            href="/"
-            className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-          >
-            ← Back to Home
-          </Link>
-        </div>
 
-        <GraphView
-          initialEdges={edges}
-          onAddEdge={handleAddEdge}
-          onDeleteEdge={handleDeleteEdge}
-        />
-      </div>
-    </main>
+          <GraphView
+            initialEdges={edges}
+            onAddEdge={handleAddEdge}
+            onDeleteEdge={handleDeleteEdge}
+          />
+        </div>
+      </main>
+    </>
   );
 }

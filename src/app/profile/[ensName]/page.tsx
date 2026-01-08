@@ -1,5 +1,6 @@
 import { fetchENSProfile } from "@/lib/ens";
 import { ENSProfile } from "@/components/ens-profile";
+import { Navbar } from "@/components/navbar";
 
 export default async function ProfilePage({
   params,
@@ -11,8 +12,11 @@ export default async function ProfilePage({
   const profile = await fetchENSProfile(decodedName);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 sm:p-8">
-      <ENSProfile profile={profile} />
-    </main>
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-gray-50 p-4 sm:p-8">
+        <ENSProfile profile={profile} />
+      </main>
+    </>
   );
 }

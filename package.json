@@ -1,6 +1,8 @@
 {
-  "name": "ens-social-graph",
-  "version": "0.1.0",
+  "name": "linkchain",
+  "version": "1.0.0",
+  "description": "Modern Web3 identity network platform for ENS profiles",
+  "author": "Your Name",
   "private": true,
   "scripts": {
     "dev": "next dev",

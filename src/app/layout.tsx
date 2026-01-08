@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ENS Social Graph",
-  description: "Explore ENS profiles and their connections",
+  title: "LinkChain - Web3 Identity Network",
+  description: "Explore and visualize Web3 identities and their connections on Ethereum Name Service",
 };
 
 export default function RootLayout({

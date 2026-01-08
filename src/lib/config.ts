@@ -33,3 +33,12 @@ export function getPostgresUrl(): string | undefined {
 export function hasDatabaseConfig(): boolean {
   return !!getPostgresUrl();
 }
+
+// Etherscan API key for fetching transaction history (optional)
+export function getEtherscanApiKey(): string | undefined {
+  const key = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY;
+  if (key && key !== "your-etherscan-api-key") {
+    return key;
+  }
+  return undefined;
+}

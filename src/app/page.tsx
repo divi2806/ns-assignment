@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Navbar } from "@/components/navbar";
 
 interface SearchResult {
   name: string;
@@ -10,9 +11,9 @@ interface SearchResult {
 }
 
 const EXAMPLE_NAMES = [
-  { name: "vitalik.eth", description: "Ethereum founder" },
-  { name: "balajis.eth", description: "Tech entrepreneur" },
-  { name: "nick.eth", description: "ENS lead developer" },
+  { name: "vitalik.eth", description: "Co-founder at Ethereum Foundation" },
+  { name: "balajis.eth", description: "Entrepreneur and founder Network School" },
+  { name: "nick.eth", description: "Lead at ENS" },
 ];
 
 export default function Home() {
@@ -121,15 +122,17 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
-      {/* Hero Section */}
-      <div className="max-w-4xl mx-auto px-6 pt-24 pb-16">
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-gray-50">
+        {/* Hero Section */}
+        <div className="max-w-4xl mx-auto px-6 pt-24 pb-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-6">
-            Your Web3 Identity
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+            LinkChain
           </h1>
           <p className="text-xl text-gray-600 max-w-xl mx-auto">
-            Explore ENS profiles and visualize social connections on Ethereum
+            Discover and connect Web3 identities across the Ethereum ecosystem
           </p>
         </div>
 
@@ -148,14 +151,14 @@ export default function Home() {
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Search for a name"
-              className="w-full px-6 py-4 text-lg bg-white border-2 border-gray-200 rounded-2xl shadow-lg focus:border-blue-500 focus:shadow-xl focus:outline-none transition-all"
+              placeholder="Search Web3 identity..."
+              className="w-full px-6 py-4 text-lg bg-white border border-gray-300 rounded-lg focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none transition-all"
               autoComplete="off"
             />
             <button
               type="submit"
               disabled={!ensName.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -168,15 +171,15 @@ export default function Home() {
             {showSuggestions && suggestions.length > 0 && (
               <div
                 ref={suggestionsRef}
-                className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden"
+                className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 overflow-hidden"
               >
                 {suggestions.map((result, index) => (
                   <button
                     key={result.name}
                     type="button"
                     onClick={() => handleSelectSuggestion(result.name)}
-                    className={`w-full px-5 py-3 text-left hover:bg-blue-50 transition-colors ${
-                      index === selectedIndex ? "bg-blue-50" : ""
+                    className={`w-full px-5 py-3 text-left hover:bg-gray-100 transition-colors ${
+                      index === selectedIndex ? "bg-gray-100" : ""
                     }`}
                   >
                     <span className="font-medium text-gray-900">
@@ -195,12 +198,12 @@ export default function Home() {
             <Link
               key={example.name}
               href={`/profile/${example.name}`}
-              className="group px-5 py-3 bg-white border border-gray-200 rounded-full hover:border-blue-400 hover:shadow-md transition-all"
+              className="group px-5 py-3 bg-white border border-gray-300 rounded-lg hover:border-gray-900 hover:shadow-sm transition-all"
             >
-              <span className="font-semibold text-gray-800 group-hover:text-blue-600">
+              <span className="font-semibold text-gray-900">
                 {example.name}
               </span>
-              <span className="text-sm text-gray-500 ml-2">
+              <span className="text-sm text-gray-600 ml-2">
                 {example.description}
               </span>
             </Link>
@@ -210,29 +213,30 @@ export default function Home() {
         {/* Social Graph Feature Card */}
         <Link
           href="/graph"
-          className="block max-w-lg mx-auto p-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all group"
+          className="block max-w-lg mx-auto p-8 bg-gray-900 rounded-lg hover:shadow-lg transition-all group border border-gray-800"
         >
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+            <div className="w-14 h-14 bg-gray-800 rounded-lg flex items-center justify-center">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-white">
-              Social Graph
+              Network Graph
             </h2>
           </div>
-          <p className="text-white/90 text-lg leading-relaxed">
-            Visualize and edit ENS connection networks. Add or remove relationships between profiles.
+          <p className="text-gray-300 text-lg leading-relaxed">
+            Visualize identity networks and manage connections. Build and explore relationship maps.
           </p>
-          <div className="mt-6 flex items-center text-white/80 group-hover:text-white transition-colors">
-            <span className="font-medium">Explore connections</span>
+          <div className="mt-6 flex items-center text-gray-400 group-hover:text-white transition-colors">
+            <span className="font-medium">Explore network</span>
             <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </div>
         </Link>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
