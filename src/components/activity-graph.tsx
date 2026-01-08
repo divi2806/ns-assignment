@@ -42,23 +42,18 @@ export function ActivityGraph({ address }: ActivityGraphProps) {
     }
   }, [address]);
 
-  // Generate last 365 days
+  // Generate days for last 6 months
   const generateDays = () => {
     const days: { date: Date; count: number }[] = [];
-    const today = new Date();
     
-    for (let i = 364; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      const dateStr = date.toISOString().split('T')[0];
-      const activity = activities.find(a => a.date === dateStr);
-      
+    // Use the activities data directly from the API (already filtered for last 6 months)
+    activities.forEach(activity => {
+      const date = new Date(activity.date);
       days.push({
         date,
-        count: activity?.count || 0,
+        count: activity.count || 0,
       });
-    }
+    });
     
     return days;
   };
@@ -96,9 +91,10 @@ export function ActivityGraph({ address }: ActivityGraphProps) {
     }
   }
 
+  // Generate month labels for last 6 months
   const monthLabels = [];
   const currentMonth = new Date();
-  for (let i = 11; i >= 0; i--) {
+  for (let i = 5; i >= 0; i--) {
     const month = new Date(currentMonth);
     month.setMonth(month.getMonth() - i);
     monthLabels.push({
@@ -123,7 +119,7 @@ export function ActivityGraph({ address }: ActivityGraphProps) {
     <div className="bg-white border border-gray-300 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-medium text-gray-900">On-Chain Activity</h3>
+          <h3 className="text-sm font-medium text-gray-900">On-Chain Activity (Last 6 Months)</h3>
           {cacheInfo?.cached && (
             <p className="text-xs text-gray-500 mt-1">
               Cached ({cacheInfo.cacheAge}m ago)
@@ -200,7 +196,7 @@ export function ActivityGraph({ address }: ActivityGraphProps) {
       </div>
       
       <div className="mt-4 text-xs text-gray-600">
-        {activities.reduce((sum, a) => sum + a.count, 0)} on-chain interactions in the last year
+        {activities.reduce((sum, a) => sum + a.count, 0)} on-chain interactions in the last 6 months
       </div>
     </div>
   );

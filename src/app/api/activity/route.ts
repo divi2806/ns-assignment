@@ -68,16 +68,46 @@ export async function GET(request: NextRequest) {
       throw new Error("Etherscan API key not configured");
     }
 
-    console.log(`Fetching transactions from Etherscan for ${normalizedAddress}`);
+    console.log(`Fetching last 6 months of transactions from Etherscan for ${normalizedAddress}`);
 
-    // Fetch both normal and internal transactions from Etherscan
-    const [normalTxResponse, internalTxResponse] = await Promise.all([
-      fetch(`https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc&apikey=${etherscanApiKey}`),
-      fetch(`https://api.etherscan.io/api?module=account&action=txlistinternal&address=${address}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc&apikey=${etherscanApiKey}`)
-    ]);
+    // Calculate block range for last 6 months
+    // Ethereum has ~7200 blocks per day (12 sec block time)
+    const blocksPerDay = 7200;
+    const daysInSixMonths = 180;
+    const blocksInSixMonths = blocksPerDay * daysInSixMonths;
     
+    // We'll use startblock=0 but filter by timestamp in processing
+    // This is more reliable than calculating exact block numbers
+    console.log(`Fetching recent transactions (last ~${daysInSixMonths} days)`);
+
+    // Fetch both normal and internal transactions from Etherscan for 2026 only
+    // Fetch recent transactions using Etherscan API V2
+    console.log('Calling Etherscan API V2...');
+    const fetchOptions = {
+      signal: AbortSignal.timeout(60000), // 60 second timeout
+    };
+
+    // Etherscan API V2 requires chainid parameter (1 = Ethereum Mainnet)
+    const chainId = 1;
+    const baseUrl = 'https://api.etherscan.io/v2/api';
+
+    const [normalTxResponse, internalTxResponse] = await Promise.all([
+      fetch(`${baseUrl}?chainid=${chainId}&module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1000&sort=desc&apikey=${etherscanApiKey}`, fetchOptions),
+      fetch(`${baseUrl}?chainid=${chainId}&module=account&action=txlistinternal&address=${address}&startblock=0&endblock=99999999&page=1&offset=1000&sort=desc&apikey=${etherscanApiKey}`, fetchOptions)
+    ]).catch(err => {
+      console.error('Etherscan API V2 call failed:', err.message);
+      throw new Error(`Etherscan API V2 unreachable: ${err.message}`);
+    });
+    
+    if (!normalTxResponse.ok || !internalTxResponse.ok) {
+      throw new Error(`Etherscan API returned error status: ${normalTxResponse.status}/${internalTxResponse.status}`);
+    }
+
     const normalTxData = await normalTxResponse.json();
     const internalTxData = await internalTxResponse.json();
+
+    console.log('Etherscan normal response:', normalTxData.status, normalTxData.message);
+    console.log('Etherscan internal response:', internalTxData.status, internalTxData.message);
 
     const normalTransactions: EtherscanTransaction[] = normalTxData.status === "1" && Array.isArray(normalTxData.result) ? normalTxData.result : [];
     const internalTransactions: EtherscanTransaction[] = internalTxData.status === "1" && Array.isArray(internalTxData.result) ? internalTxData.result : [];
@@ -85,22 +115,29 @@ export async function GET(request: NextRequest) {
     const allTransactions = [...normalTransactions, ...internalTransactions];
     console.log(`Fetched ${normalTransactions.length} normal + ${internalTransactions.length} internal = ${allTransactions.length} total transactions`);
 
-    // Group transactions by date
+    // Group transactions by date (filter only last 6 months)
     const activityMap = new Map<string, number>();
+    const today = new Date();
+    const sixMonthsAgo = new Date(today);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoTimestamp = sixMonthsAgo.getTime();
     
     allTransactions.forEach((tx) => {
       const timestamp = parseInt(tx.timeStamp) * 1000; // Convert to milliseconds
-      const date = new Date(timestamp);
-      const dateStr = date.toISOString().split('T')[0];
       
-      activityMap.set(dateStr, (activityMap.get(dateStr) || 0) + 1);
+      // Only include transactions from last 6 months
+      if (timestamp >= sixMonthsAgoTimestamp) {
+        const date = new Date(timestamp);
+        const dateStr = date.toISOString().split('T')[0];
+        activityMap.set(dateStr, (activityMap.get(dateStr) || 0) + 1);
+      }
     });
 
-    // Generate last 365 days of activity
+    // Generate activity data for last 6 months
     const activities: Activity[] = [];
-    const today = new Date();
+    const daysToShow = 180; // 6 months
     
-    for (let i = 364; i >= 0; i--) {
+    for (let i = daysToShow - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
@@ -171,28 +208,27 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Return mock data for demo purposes
+    // Return empty data for last 6 months when API fails
     const activities: Activity[] = [];
     const today = new Date();
+    const daysToShow = 180; // Last 6 months
     
-    for (let i = 0; i < 365; i++) {
+    for (let i = daysToShow - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       
-      // Generate some random activity for demo
-      const count = Math.random() > 0.7 ? Math.floor(Math.random() * 10) : 0;
-      
       activities.push({
         date: dateStr,
-        count,
+        count: 0,
       });
     }
 
     return NextResponse.json({
-      activities: activities.reverse(),
-      maxCount: 10,
+      activities,
+      maxCount: 1,
       demo: true,
+      error: "Failed to fetch from Etherscan API",
     });
   }
 }
